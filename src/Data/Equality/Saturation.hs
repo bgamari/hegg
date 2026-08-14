@@ -145,9 +145,9 @@ runEqualitySaturation schd rewrites =
             && IM.size afterClasses == IM.size beforeClasses
       let skippedRules = rulesWereBanned @l @schd i stats
       if
-          -- If we reached a fixed point while rules were banned, reset them
-          -- and try once more with every rule enabled.
-         | saturated && skippedRules ->
+          -- At a fixed point, or before the ordinary cap would discard the
+          -- next pass, reset banned rules and try once with every rule enabled.
+         | skippedRules && (saturated || i + 1 >= 30) ->
              -- Reset stats to unban all rules.
              runEqualitySaturation' True (i+1) mempty
           -- We have reached true saturation. We are done.

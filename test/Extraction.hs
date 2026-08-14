@@ -121,7 +121,7 @@ reconstructsFreshSiblingBesideCycle :: IO ()
 reconstructsFreshSiblingBesideCycle =
   extractBest egraph mixedCycleCost root
     @?= pair
-      (wrap $ pair (atom 8) (atom 9))
+      (wrap $ pair (atom 8) (wrap $ atom 0))
       (wrap $ atom 0)
  where
   (root, egraph) = result

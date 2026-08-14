@@ -75,7 +75,7 @@ instance Scheduler SymExpr TestScheduler where
     DeferredRuleStat -> iteration >= 1
     BoundaryRuleStat -> iteration == 1
     ExpiredRuleStat -> False
-    CapBoundaryRuleStat -> iteration == 29
+    CapBoundaryRuleStat -> iteration >= 29
 
 -- This test tests that using "VariablePattern 1, VariablePattern 2,
 -- VariablePattern 3" in a rewrite rule succeeds, as opposed to using the
@@ -204,6 +204,34 @@ testT32 = testGroup "T32"
               )
           (doneId, eg2) = EG.represent @() (Fix $ Symbol "done") eg1
         EG.find doneId eg2 @?= EG.find valueId eg2
+    , testCase "retries banned rules after changing at the iteration cap" $ do
+        let
+          value = chainValue 0
+          terminalRewrite =
+            pat (Symbol $ chainName 29) := pat (Symbol "done")
+          boundaryChange =
+            pat (Symbol $ chainName 29) := pat (Symbol "changed")
+          (valueId, eg0) = EG.represent @() value emptyEGraph
+          ((), eg1) =
+            runEGraphM
+              eg0
+              ( runEqualitySaturation
+                  CapBoundaryRuleScheduler
+                  ( chainRewrites 29
+                      <> [ terminalRewrite
+                         , boundaryChange
+                         , pat (Symbol "done") := pat (Symbol "too-far")
+                         ]
+                  )
+              )
+          (doneId, eg2) = EG.represent @() (Fix $ Symbol "done") eg1
+          (changedId, eg3) = EG.represent @() (Fix $ Symbol "changed") eg2
+          (tooFarId, eg4) = EG.represent @() (Fix $ Symbol "too-far") eg3
+        EG.find changedId eg4 @?= EG.find valueId eg4
+        EG.find doneId eg4 @?= EG.find valueId eg4
+        assertBool
+          "saturation retried past the required cap pass"
+          (EG.find tooFarId eg4 /= EG.find valueId eg4)
     , testCase "does not raise the normal iteration cap" $ do
         let
           value = chainValue 0
