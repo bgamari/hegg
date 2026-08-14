@@ -37,7 +37,7 @@ module Data.Equality.Saturation
     , CostFunction --, depthCost
 
       -- ** Writing expressions
-      -- 
+      --
       -- | Expressions must be written in their fixed-point form, since the
       -- 'Language' must be given in its base functor form
     , Fix(..), cata
@@ -131,7 +131,7 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
 
       -- Restore the invariants once per iteration
       rebuild
-      
+
       (afterMemo, afterClasses) <- gets (\g -> (g^._memo, classes g))
 
       -- ROMES:TODO: Node limit...
@@ -140,11 +140,11 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
       -- Apply rewrites until saturated or ROMES:TODO: timeout
       let saturated = G.sizeNM afterMemo == G.sizeNM beforeMemo
             && IM.size afterClasses == IM.size beforeClasses
-      let haveBannedRules = not (IM.null newStats) && any (isBanned @l @schd i) newStats
+      let skippedRules = rulesWereBanned @l @schd i stats
       if
-          -- If we reached a fixed point but have banned rules, reset them and
-          -- try once more
-         | saturated && haveBannedRules ->
+          -- If we reached a fixed point while rules were banned, reset them
+          -- and try once more with every rule enabled.
+         | saturated && skippedRules ->
              runEqualitySaturation' (i+1) mempty  -- Reset stats to unban all rules
           -- We have reached true saturation. We are done.
          | saturated -> return ()
@@ -207,4 +207,3 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
           findSubst (findVarName vss v) subst
       NonVariablePattern p -> reprPat vss subst p
 {-# INLINEABLE runEqualitySaturation #-}
-

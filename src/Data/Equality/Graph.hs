@@ -121,7 +121,7 @@ add uncanon_e egr =
             -- analysis) I think there might be another way to ensure math analysis
             -- pruning to work without having this line here.  Comment it out to
             -- check the result on the unit tests.
-            -- 
+            --
             -- Update: I found a fix for that case: the modifyA function must add
             -- the parents of the pruned class to the worklist for them to be
             -- upward merged. I think it's a good compromise for requiring the user
@@ -231,7 +231,7 @@ merge a b egr0 =
 
         in (new_id, egr1)
 {-# INLINEABLE merge #-}
-            
+
 
 -- | The rebuild operation processes the e-graph's current worklist,
 -- restoring the invariants of deduplication and congruence. Rebuilding is

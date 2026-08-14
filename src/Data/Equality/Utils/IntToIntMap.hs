@@ -124,7 +124,7 @@ zero i m
 {-# INLINE zero #-}
 
 -- | A 'foldr' in which the accumulator is unlifted
-unliftedFoldr :: forall a {b :: TYPE ('BoxedRep 'Unlifted)} . (a -> b -> b) -> b -> [a] -> b 
+unliftedFoldr :: forall a {b :: TYPE ('BoxedRep 'Unlifted)} . (a -> b -> b) -> b -> [a] -> b
 unliftedFoldr k z = go
   where
     go []     = z

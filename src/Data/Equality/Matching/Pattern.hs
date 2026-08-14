@@ -36,7 +36,7 @@ import Data.String
 -- @
 --
 -- But would not be matched against the following patterns
--- 
+--
 -- @
 -- pat4 :: Pattern Sym
 -- pat4 = NonVariablePattern (Const 5)
@@ -76,7 +76,7 @@ pat = NonVariablePattern
 
 instance (∀ a. Eq a => Eq (l a)) => (Eq (Pattern l)) where
     (==) (NonVariablePattern a) (NonVariablePattern b) = (==) a b
-    (==) (VariablePattern a) (VariablePattern b) = a == b 
+    (==) (VariablePattern a) (VariablePattern b) = a == b
     (==) _ _ = False
 
 instance (∀ a. Eq a => Eq (l a), ∀ a. (Ord a) => Ord (l a)) => (Ord (Pattern l)) where

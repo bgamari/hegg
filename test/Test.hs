@@ -8,8 +8,10 @@ import Control.Exception
 
 -- import Data.Equality.Utils
 import Invariants
+import Extraction
 import Sym
 import Lambda
+import MatchingDatabase
 import SimpleSym
 import T32
 
@@ -22,10 +24,12 @@ import qualified VizDot
 
 tests :: TestTree
 tests =testGroup "Tests"
-    [ symTests
+    [ extractionTests
+    , symTests
     , lambdaTests
     , simpleSymTests
     , invariants
+    , matchingDatabaseTests
     , testCase "T1" (T1.main `catch` (\(e :: SomeException) -> assertFailure (show e)))
     , testCase "T2" (T2.main `catch` (\(e :: SomeException) -> assertFailure (show e)))
     , testCase "T3" (T3.main `catch` (\(e :: SomeException) -> assertFailure (show e)))
