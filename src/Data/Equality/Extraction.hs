@@ -56,7 +56,10 @@ extractBest egr cost (flip find egr -> i) =
   -- unrelated roots when several expressions share one e-graph.
   let allCosts = findCosts reachableEClasses mempty
    in case findBest i allCosts of
-        Just (CostWithExpr (_, n)) -> n
+        Just best ->
+          case reconstruct allCosts S.empty i of
+            Just expr -> expr
+            Nothing -> bestWitness best
         Nothing -> error $ "Couldn't find a best node for e-class " <> show i
  where
   reachableEClasses :: ClassIdMap (EClass anl lang)
@@ -88,17 +91,17 @@ extractBest egr cost (flip find egr -> i) =
   -- \| Find the lowest cost of all e-classes in an e-graph in an extraction
   findCosts
     :: ClassIdMap (EClass anl lang)
-    -> ClassIdMap (CostWithExpr lang cost)
-    -> ClassIdMap (CostWithExpr lang cost)
+    -> ClassIdMap (Best lang cost)
+    -> ClassIdMap (Best lang cost)
   findCosts eclasses current =
     let (modified, updated) = IM.foldlWithKey' f (False, current) eclasses
 
         {-# INLINE f #-}
         f
-          :: (Bool, ClassIdMap (CostWithExpr lang cost))
+          :: (Bool, ClassIdMap (Best lang cost))
           -> Int
           -> EClass anl lang
-          -> (Bool, ClassIdMap (CostWithExpr lang cost))
+          -> (Bool, ClassIdMap (Best lang cost))
         f acc@(_, beingUpdated) i' EClass{eClassNodes = nodes} =
           let
             currentCost = IM.lookup i' beingUpdated
@@ -109,7 +112,9 @@ extractBest egr cost (flip find egr -> i) =
                     (Nothing, Nothing) -> Nothing
                     (Nothing, Just nc) -> Just nc
                     (Just oc, Nothing) -> Just oc
-                    (Just oc, Just nc) -> Just (oc `min` nc)
+                    (Just oc, Just nc)
+                      | bestCost nc < bestCost oc -> Just nc
+                      | otherwise -> Just oc
                 )
                 Nothing
                 nodes
@@ -117,8 +122,9 @@ extractBest egr cost (flip find egr -> i) =
             -- Current cost + get lowest cost and corresponding node of an e-class if possible
             case (currentCost, newCost) of
               (Nothing, Just new) -> (True, IM.insert i' new beingUpdated)
-              (Just (CostWithExpr old), Just (CostWithExpr new))
-                | fst new < fst old -> (True, IM.insert i' (CostWithExpr new) beingUpdated)
+              (Just old, Just new)
+                | bestCost new < bestCost old ->
+                    (True, IM.insert i' new beingUpdated)
               _ -> acc
      in -- If any class was modified, loop
         if modified
@@ -128,16 +134,41 @@ extractBest egr cost (flip find egr -> i) =
   -- \| Get the total cost of a node in an e-graph if possible at this stage of
   -- the extraction
   --
-  -- For a node to have a cost, all its (canonical) sub-classes have a cost and
-  -- an associated better expression. We return the constructed best expression
-  -- with its cost
+  -- For a node to have a cost, all its (canonical) sub-classes have a best
+  -- candidate. Retain the selected node and a finite expression for cycle
+  -- fallback while the fixed point converges.
   nodeTotalCost
     :: Traversable lang
-    => ClassIdMap (CostWithExpr lang cost) -> ENode lang -> Maybe (CostWithExpr lang cost)
-  nodeTotalCost m (Node n) = do
-    expr <- traverse ((`IM.lookup` m) . flip find egr) n
-    return $ CostWithExpr (cost (fst . unCWE <$> expr), Fix $ snd . unCWE <$> expr)
+    => ClassIdMap (Best lang cost) -> ENode lang -> Maybe (Best lang cost)
+  nodeTotalCost m node@(Node n) = do
+    childBest <- traverse ((`IM.lookup` m) . flip find egr) n
+    pure $
+      Best
+        { bestCost = cost $ bestCost <$> childBest
+        , bestNode = node
+        , bestWitness = Fix $ bestWitness <$> childBest
+        }
   {-# INLINE nodeTotalCost #-}
+
+  reconstruct
+    :: ClassIdMap (Best lang cost)
+    -> S.Set ClassId
+    -> ClassId
+    -> Maybe (Fix lang)
+  reconstruct bestByClass visiting rawClassId =
+    case IM.lookup classId bestByClass of
+      Nothing ->
+        error $
+          "extractBest: missing best node for e-class " <> show classId
+      Just Best{bestNode = Node node, bestWitness = witness}
+        | S.member classId visiting -> Just witness
+        | otherwise ->
+            Fix
+              <$> traverse
+                (reconstruct bestByClass $ S.insert classId visiting)
+                node
+   where
+    classId = find rawClassId egr
 {-# INLINEABLE extractBest #-}
 
 -- | A cost function is used to attribute a cost to representations in the
@@ -168,16 +199,12 @@ depthCost = (+ 1) . sum
 
 -- | Find the current best node and its cost in an equivalence class given only the class and the current extraction
 -- This is not necessarily the best node in the e-graph, only the best in the current extraction state
-findBest :: ClassId -> ClassIdMap (CostWithExpr lang a) -> Maybe (CostWithExpr lang a)
+findBest :: ClassId -> ClassIdMap (Best lang a) -> Maybe (Best lang a)
 findBest = IM.lookup
 {-# INLINE findBest #-}
 
-newtype CostWithExpr lang a = CostWithExpr {unCWE :: (a, Fix lang)}
-
-instance Eq a => Eq (CostWithExpr lang a) where
-  (==) (CostWithExpr (a, _)) (CostWithExpr (b, _)) = a == b
-  {-# INLINE (==) #-}
-
-instance Ord a => Ord (CostWithExpr lang a) where
-  compare (CostWithExpr (a, _)) (CostWithExpr (b, _)) = a `compare` b
-  {-# INLINE compare #-}
+data Best lang cost = Best
+  { bestCost :: cost
+  , bestNode :: ENode lang
+  , bestWitness :: Fix lang
+  }

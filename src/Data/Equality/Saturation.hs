@@ -105,14 +105,17 @@ runEqualitySaturation :: forall a l schd
                       => schd                -- ^ Scheduler to use
                       -> [Rewrite a l]       -- ^ List of rewrite rules
                       -> EGraphM a l ()
-runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- Start at iteration 0
+runEqualitySaturation schd rewrites =
+  runEqualitySaturation' False 0 mempty
+ where
 
   -- Take map each rewrite rule to stats on its usage so we can do
   -- backoff scheduling. Each rewrite rule is assigned an integer
   -- (corresponding to its position in the list of rewrite rules)
-  runEqualitySaturation' :: Int -> IM.IntMap (Stat l schd) -> EGraphM a l ()
-  runEqualitySaturation' 30 _ = return () -- Stop after X iterations
-  runEqualitySaturation' i stats = do
+  runEqualitySaturation' :: Bool -> Int -> IM.IntMap (Stat l schd) -> EGraphM a l ()
+  runEqualitySaturation' requiredRetry i _
+    | i >= 30 && not requiredRetry = return () -- Stop after X iterations
+  runEqualitySaturation' _ i stats = do
 
       egr <- get
 
@@ -145,11 +148,12 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
           -- If we reached a fixed point while rules were banned, reset them
           -- and try once more with every rule enabled.
          | saturated && skippedRules ->
-             runEqualitySaturation' (i+1) mempty  -- Reset stats to unban all rules
+             -- Reset stats to unban all rules.
+             runEqualitySaturation' True (i+1) mempty
           -- We have reached true saturation. We are done.
          | saturated -> return ()
           -- There's more to be done.
-         | otherwise -> runEqualitySaturation' (i+1) newStats
+         | otherwise -> runEqualitySaturation' False (i+1) newStats
 
   matchWithScheduler :: Database l -> Int -> IM.IntMap (Stat l schd) -> Int -> Rewrite a l
                      -> ([Match], IM.IntMap (Stat l schd), VarsState {- the vars mapping resulting from compiling the query -})

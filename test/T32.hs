@@ -33,6 +33,7 @@ data TestScheduler
   | DeferredRuleScheduler
   | BoundaryRuleScheduler
   | ExpiredRuleScheduler
+  | CapBoundaryRuleScheduler
 
 instance Scheduler SymExpr TestScheduler where
   data Stat SymExpr TestScheduler
@@ -40,6 +41,7 @@ instance Scheduler SymExpr TestScheduler where
     | DeferredRuleStat
     | BoundaryRuleStat
     | ExpiredRuleStat
+    | CapBoundaryRuleStat
 
   updateStats scheduler iteration rewriteId _ _ stats matches =
     case scheduler of
@@ -60,6 +62,11 @@ instance Scheduler SymExpr TestScheduler where
         | iteration >= 2 -> error "saturation retried an expired rule"
         | iteration == 0 -> IM.insert rewriteId ExpiredRuleStat stats
         | otherwise -> stats
+      CapBoundaryRuleScheduler
+        | iteration > 30 -> error "saturation retried past the required pass"
+        | iteration == 0 && rewriteId == 30 ->
+            IM.insert rewriteId CapBoundaryRuleStat stats
+        | otherwise -> stats
 
   isBanned iteration = \case
     RetryTrapStat
@@ -68,6 +75,7 @@ instance Scheduler SymExpr TestScheduler where
     DeferredRuleStat -> iteration >= 1
     BoundaryRuleStat -> iteration == 1
     ExpiredRuleStat -> False
+    CapBoundaryRuleStat -> iteration == 29
 
 -- This test tests that using "VariablePattern 1, VariablePattern 2,
 -- VariablePattern 3" in a rewrite rule succeeds, as opposed to using the
@@ -83,6 +91,18 @@ rewrites =
 e1, e1' :: Fix SymExpr
 e1 = Fix (Fix (Fix (Symbol "a") :+: Fix (Symbol "b")) :+: Fix (Symbol "c"))
 e1' = Fix (Fix (Symbol "a") :+: Fix (Fix (Symbol "b") :+: Fix (Symbol "c")))
+
+chainName :: Int -> String
+chainName index = "chain-" <> show index
+
+chainValue :: Int -> Fix SymExpr
+chainValue = Fix . Symbol . chainName
+
+chainRewrites :: Int -> [Rewrite () SymExpr]
+chainRewrites linkCount =
+  [ pat (Symbol $ chainName index) := pat (Symbol $ chainName $ index + 1)
+  | index <- [0 .. linkCount - 1]
+  ]
 
 somePattern :: Pattern []
 somePattern = NonVariablePattern [VariablePattern "0",VariablePattern "1"]
@@ -169,6 +189,36 @@ testT32 = testGroup "T32"
               )
           (readyId, eg2) = EG.represent @() (Fix $ Symbol "ready") eg1
         EG.find readyId eg2 @?= EG.find valueId eg2
+    , testCase "performs a required scheduler retry past the iteration cap" $ do
+        let
+          value = chainValue 0
+          terminalRewrite =
+            pat (Symbol $ chainName 29) := pat (Symbol "done")
+          (valueId, eg0) = EG.represent @() value emptyEGraph
+          ((), eg1) =
+            runEGraphM
+              eg0
+              ( runEqualitySaturation
+                  CapBoundaryRuleScheduler
+                  (chainRewrites 29 <> [terminalRewrite])
+              )
+          (doneId, eg2) = EG.represent @() (Fix $ Symbol "done") eg1
+        EG.find doneId eg2 @?= EG.find valueId eg2
+    , testCase "does not raise the normal iteration cap" $ do
+        let
+          value = chainValue 0
+          (valueId, eg0) = EG.represent @() value emptyEGraph
+          ((), eg1) =
+            runEGraphM
+              eg0
+              (runEqualitySaturation defaultBackoffScheduler $ chainRewrites 31)
+          (node30Id, eg2) = EG.represent @() (chainValue 30) eg1
+          (node31Id, eg3) = EG.represent @() (chainValue 31) eg2
+          rootId = EG.find valueId eg3
+        EG.find node30Id eg3 @?= rootId
+        assertBool
+          "normal saturation ran a thirty-first iteration"
+          (EG.find node31Id eg3 /= rootId)
     -- , testCase "compiling pattern" $
     --     compileToQuery somePattern @?= Query ...
     ]

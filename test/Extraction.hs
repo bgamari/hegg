@@ -28,11 +28,30 @@ exprCost = \case
   Wrap value -> value + 1
   Pair left right -> left + right + 1
 
+finalChildCost :: CostFunction Expr Int
+finalChildCost = \case
+  Pair _ _ -> 0
+  expr -> exprCost expr
+
+cycleCost :: CostFunction Expr Int
+cycleCost = \case
+  Wrap _ -> 0
+  expr -> exprCost expr
+
+mixedCycleCost :: CostFunction Expr Int
+mixedCycleCost = \case
+  Wrap _ -> 0
+  Pair _ _ -> 0
+  expr -> exprCost expr
+
 atom :: Int -> Fix Expr
 atom = Fix . Atom
 
 wrap :: Fix Expr -> Fix Expr
 wrap = Fix . Wrap
+
+pair :: Fix Expr -> Fix Expr -> Fix Expr
+pair left right = Fix $ Pair left right
 
 unreachableCostIsNotEvaluated :: IO ()
 unreachableCostIsNotEvaluated =
@@ -67,6 +86,58 @@ extractsAcrossStaleMergesAndCycles =
     _ <- EG.merge rootClass cyclicAlternative
     pure rootClass
 
+reconstructsWithFinalSelectedChildren :: IO ()
+reconstructsWithFinalSelectedChildren =
+  extractBest egraph finalChildCost root
+    @?= pair (wrap $ atom 0) (wrap $ atom 0)
+ where
+  (root, egraph) = result
+  result :: (G.ClassId, G.EGraph () Expr)
+  result = EG.egraph $ do
+    old <- EG.add $ G.Node $ Atom 9
+    rootClass <- EG.add $ G.Node $ Pair old old
+    cheap <- EG.add $ G.Node $ Atom 0
+    better <- EG.add $ G.Node $ Wrap cheap
+    _ <- EG.merge old better
+    EG.rebuild
+    pure rootClass
+
+fallsBackToFiniteWitnessOnCycle :: IO ()
+fallsBackToFiniteWitnessOnCycle =
+  extractBest egraph cycleCost root
+    @?= wrap (wrap $ wrap $ atom 9)
+ where
+  (root, egraph) = result
+  result :: (G.ClassId, G.EGraph () Expr)
+  result = EG.egraph $ do
+    old <- EG.add $ G.Node $ Atom 9
+    rootClass <- EG.add $ G.Node $ Wrap old
+    cyclic <- EG.add $ G.Node $ Wrap rootClass
+    _ <- EG.merge old cyclic
+    EG.rebuild
+    pure rootClass
+
+reconstructsFreshSiblingBesideCycle :: IO ()
+reconstructsFreshSiblingBesideCycle =
+  extractBest egraph mixedCycleCost root
+    @?= pair
+      (wrap $ pair (atom 8) (atom 9))
+      (wrap $ atom 0)
+ where
+  (root, egraph) = result
+  result :: (G.ClassId, G.EGraph () Expr)
+  result = EG.egraph $ do
+    cycleLeaf <- EG.add $ G.Node $ Atom 8
+    improvingLeaf <- EG.add $ G.Node $ Atom 9
+    rootClass <- EG.add $ G.Node $ Pair cycleLeaf improvingLeaf
+    cyclic <- EG.add $ G.Node $ Wrap rootClass
+    _ <- EG.merge cycleLeaf cyclic
+    cheap <- EG.add $ G.Node $ Atom 0
+    better <- EG.add $ G.Node $ Wrap cheap
+    _ <- EG.merge improvingLeaf better
+    EG.rebuild
+    pure rootClass
+
 extractionTests :: TestTree
 extractionTests =
   testGroup
@@ -75,4 +146,13 @@ extractionTests =
     , testCase
         "handles stale merges and cyclic alternatives"
         extractsAcrossStaleMergesAndCycles
+    , testCase
+        "reconstructs using final selected children"
+        reconstructsWithFinalSelectedChildren
+    , testCase
+        "falls back to a finite witness on a selected cycle"
+        fallsBackToFiniteWitnessOnCycle
+    , testCase
+        "reconstructs a fresh sibling beside a selected cycle"
+        reconstructsFreshSiblingBesideCycle
     ]
