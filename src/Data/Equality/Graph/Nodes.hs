@@ -30,7 +30,7 @@ import Data.Equality.Graph.Classes.Id
 -- * E-node
 
 -- | An e-node is a function symbol paired with a list of children e-classes.
--- 
+--
 -- We define an e-node to be the base functor of some recursive data type
 -- parametrized over 'ClassId', i.e. all recursive fields are rather e-class ids.
 newtype ENode l = Node { unNode :: l ClassId }
@@ -92,12 +92,12 @@ insertLookupNM e v (NodeMap m) = second NodeMap $ M.insertLookupWithKey (\_ a _ 
 {-# INLINE insertLookupNM #-}
 
 -- | As 'Data.Map.foldlWithKeyNM'' but in a 'NodeMap'
-foldlWithKeyNM' :: Ord (l ClassId) => (b -> ENode l -> a -> b) -> b -> NodeMap l a -> b 
+foldlWithKeyNM' :: Ord (l ClassId) => (b -> ENode l -> a -> b) -> b -> NodeMap l a -> b
 foldlWithKeyNM' f b = M.foldlWithKey' f b . unNodeMap
 {-# INLINE foldlWithKeyNM' #-}
 
 -- | As 'Data.Map.foldrWithKeyNM'' but in a 'NodeMap'
-foldrWithKeyNM' :: Ord (l ClassId) => (ENode l -> a -> b -> b) -> b -> NodeMap l a -> b 
+foldrWithKeyNM' :: Ord (l ClassId) => (ENode l -> a -> b -> b) -> b -> NodeMap l a -> b
 foldrWithKeyNM' f b = M.foldrWithKey' f b . unNodeMap
 {-# INLINE foldrWithKeyNM' #-}
 
@@ -109,7 +109,7 @@ sizeNM = M.size . unNodeMap
 {-# INLINE sizeNM #-}
 
 -- | As 'Data.Map.traverseWithKeyNM' but in a 'NodeMap'
-traverseWithKeyNM :: Applicative t => (ENode l -> a -> t b) -> NodeMap l a -> t (NodeMap l b) 
+traverseWithKeyNM :: Applicative t => (ENode l -> a -> t b) -> NodeMap l a -> t (NodeMap l b)
 traverseWithKeyNM f (NodeMap m) = NodeMap <$> M.traverseWithKey f m
 {-# INLINE traverseWithKeyNM #-}
 

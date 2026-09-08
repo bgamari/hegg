@@ -32,15 +32,13 @@ module Data.Equality.Matching.Database
   , sizeSubst
   ) where
 
-import Data.List (sortBy)
-import Data.Function (on)
 import Data.Maybe (mapMaybe)
 import Control.Monad
 
 #if !MIN_VERSION_base(4,20,0)
 import Data.Foldable (foldl')
 #endif
-import qualified Data.Foldable as F (toList, length)
+import qualified Data.Foldable as F (toList)
 import qualified Data.Map.Strict    as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntSet as IS
@@ -127,7 +125,7 @@ genericJoin d q@(Query _ atoms) = genericJoin' atoms (orderedVarsInQuery q)
    genericJoin' :: [Atom l] -> [Var] -> [Subst]
    genericJoin' atoms' = \case
 
-     [] -> const emptySubst <$> atoms'
+     [] -> [emptySubst]
 
      (!x):xs -> do
 
@@ -157,37 +155,17 @@ elemOfAtom !x (Atom v l) = case v of
 
 -- ROMES:TODO: Batching? How? https://arxiv.org/pdf/2108.02290.pdf
 
--- | Extract a list of unique variables from a 'Query', ordered by prioritizing
--- variables that occur in many relations, and secondly by prioritizing
--- variables that occur in small relations.
---
--- We use these heuristics because the variables' ordering is significant in
--- the query run-time performance.
---
--- This extraction could still be improved as some other strategies are
--- described in the paper (such as batching)
-orderedVarsInQuery :: (Functor lang, Foldable lang) => Query lang -> [Var]
+-- | Extract unique variables from a 'Query' in deterministic variable-ID order.
+orderedVarsInQuery :: Foldable lang => Query lang -> [Var]
 orderedVarsInQuery (SelectAllQuery x) = [x]
-orderedVarsInQuery (Query _ atoms) = coerce . IS.toList . IS.fromAscList . coerce $
-                                     sortBy (compare `on` varCost)                $
-                                     mapMaybe toVar                               $
+orderedVarsInQuery (Query _ atoms) = coerce . IS.toList . IS.fromList . coerce $
+                                     mapMaybe toVar $
                                      foldl' f mempty atoms
     where
 
         f :: Foldable lang => [ClassIdOrVar] -> Atom lang -> [ClassIdOrVar]
         f s (Atom v (F.toList -> l)) = v:(l <> s)
         {-# INLINE f #-}
-
-        -- First, prioritize variables that occur in many relations; second,
-        -- prioritize variables that occur in small relations
-        varCost :: Var -> Int
-        varCost v = foldl' (\acc a -> if v `elemOfAtom` a then acc - 100 + atomLength a else acc) 0 atoms
-        {-# INLINE varCost #-}
-
-        -- | Get the size of an atom
-        atomLength :: Foldable lang => Atom lang -> Int
-        atomLength (Atom _ l) = 1 + F.length l
-        {-# INLINE atomLength #-}
 
         -- | Extract 'Var' from 'ClassIdOrVar'
         toVar :: ClassIdOrVar -> Maybe Var
@@ -340,5 +318,3 @@ nullSubst (Subst s) = IM.null s
 
 sizeSubst :: Subst -> Int
 sizeSubst (Subst s) = IM.size s
-
-

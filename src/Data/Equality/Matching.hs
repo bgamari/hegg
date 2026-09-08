@@ -81,7 +81,7 @@ eGraphToDatabase egr = foldrWithKeyNM' addENodeToDB (DB mempty) (egr^._memo)
     addENodeToDB :: Language l => ENode l -> ClassId -> Database l -> Database l
     addENodeToDB enode classid (DB m) =
         -- ROMES:TODO map find
-        -- Insert or create a relation R_f(i1,i2,...,in) for lang in which 
+        -- Insert or create a relation R_f(i1,i2,...,in) for lang in which
         DB $ M.alter (Just . populate (classid:children enode)) (operator enode) m
 
     -- Populate or create a triemap given the population D_x (ClassIds)

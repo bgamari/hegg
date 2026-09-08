@@ -37,7 +37,7 @@ module Data.Equality.Saturation
     , CostFunction --, depthCost
 
       -- ** Writing expressions
-      -- 
+      --
       -- | Expressions must be written in their fixed-point form, since the
       -- 'Language' must be given in its base functor form
     , Fix(..), cata
@@ -105,14 +105,17 @@ runEqualitySaturation :: forall a l schd
                       => schd                -- ^ Scheduler to use
                       -> [Rewrite a l]       -- ^ List of rewrite rules
                       -> EGraphM a l ()
-runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- Start at iteration 0
+runEqualitySaturation schd rewrites =
+  runEqualitySaturation' False 0 mempty
+ where
 
   -- Take map each rewrite rule to stats on its usage so we can do
   -- backoff scheduling. Each rewrite rule is assigned an integer
   -- (corresponding to its position in the list of rewrite rules)
-  runEqualitySaturation' :: Int -> IM.IntMap (Stat l schd) -> EGraphM a l ()
-  runEqualitySaturation' 30 _ = return () -- Stop after X iterations
-  runEqualitySaturation' i stats = do
+  runEqualitySaturation' :: Bool -> Int -> IM.IntMap (Stat l schd) -> EGraphM a l ()
+  runEqualitySaturation' requiredRetry i _
+    | i >= 30 && not requiredRetry = return () -- Stop after X iterations
+  runEqualitySaturation' _ i stats = do
 
       egr <- get
 
@@ -131,7 +134,7 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
 
       -- Restore the invariants once per iteration
       rebuild
-      
+
       (afterMemo, afterClasses) <- gets (\g -> (g^._memo, classes g))
 
       -- ROMES:TODO: Node limit...
@@ -140,16 +143,17 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
       -- Apply rewrites until saturated or ROMES:TODO: timeout
       let saturated = G.sizeNM afterMemo == G.sizeNM beforeMemo
             && IM.size afterClasses == IM.size beforeClasses
-      let haveBannedRules = not (IM.null newStats) && any (isBanned @l @schd i) newStats
+      let skippedRules = rulesWereBanned @l @schd i stats
       if
-          -- If we reached a fixed point but have banned rules, reset them and
-          -- try once more
-         | saturated && haveBannedRules ->
-             runEqualitySaturation' (i+1) mempty  -- Reset stats to unban all rules
+          -- At a fixed point, or before the ordinary cap would discard the
+          -- next pass, reset banned rules and try once with every rule enabled.
+         | skippedRules && (saturated || i + 1 >= 30) ->
+             -- Reset stats to unban all rules.
+             runEqualitySaturation' True (i+1) mempty
           -- We have reached true saturation. We are done.
          | saturated -> return ()
           -- There's more to be done.
-         | otherwise -> runEqualitySaturation' (i+1) newStats
+         | otherwise -> runEqualitySaturation' False (i+1) newStats
 
   matchWithScheduler :: Database l -> Int -> IM.IntMap (Stat l schd) -> Int -> Rewrite a l
                      -> ([Match], IM.IntMap (Stat l schd), VarsState {- the vars mapping resulting from compiling the query -})
@@ -207,4 +211,3 @@ runEqualitySaturation schd rewrites = runEqualitySaturation' 0 mempty where -- S
           findSubst (findVarName vss v) subst
       NonVariablePattern p -> reprPat vss subst p
 {-# INLINEABLE runEqualitySaturation #-}
-

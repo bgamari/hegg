@@ -113,7 +113,7 @@ over ln f = runIdentity . ln (Identity . f)
 {-# INLINE over #-}
 
 -- | Basically 'traverse' over a 'Traversal'
-traverseOf :: Traversal s t a b -> forall f. Applicative f => (a -> f b) -> s -> f t 
+traverseOf :: Traversal s t a b -> forall f. Applicative f => (a -> f b) -> s -> f t
 traverseOf t = t
 {-# INLINE traverseOf #-}
 

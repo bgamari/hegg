@@ -19,6 +19,8 @@ and is used by default in 'Data.Equality.Saturation.equalitySaturation'
 module Data.Equality.Saturation.Scheduler
     ( Scheduler(..)
 
+    , rulesWereBanned
+
     , BackoffScheduler(..), defaultBackoffScheduler
 
     , TracingScheduler(..)
@@ -52,6 +54,13 @@ class Scheduler l s where
              -> Stat l s -- ^ Stats for the rewrite rule
              -> Bool -- ^ Whether the rule should be applied or not
 
+rulesWereBanned
+    :: forall l s. Scheduler l s
+    => Int
+    -> IM.IntMap (Stat l s)
+    -> Bool
+rulesWereBanned iteration = any (isBanned @l @s iteration)
+
 -- | A 'Scheduler' that implements exponentional rule backoff.
 --
 -- For each rewrite, there exists a configurable initial match limit. If a rewrite
@@ -67,7 +76,7 @@ data BackoffScheduler = BackoffScheduler
   , banLength  :: {-# UNPACK #-} !Int }
 
 -- | The default 'BackoffScheduler'.
--- 
+--
 -- The match limit is set to @1000@ and the ban length is set to @10@.
 defaultBackoffScheduler :: BackoffScheduler
 defaultBackoffScheduler = BackoffScheduler 1000 10

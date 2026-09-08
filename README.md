@@ -125,7 +125,7 @@ makeA = \case
   x :*: y -> (*) <$> x <*> y
   x :/: y -> (/) <$> x <*> y
 ```
- 
+
 `joinA` is called when e-classes c1 c2 are being merged into c. In this case, we
 must join the e-class data from both classes to form the e-class data to be
 associated with new e-class c. Its type is `domain -> domain -> domain`.  In our

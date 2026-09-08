@@ -82,7 +82,7 @@ instance Analysis (Maybe (Lambda ())) Lambda where
               Bool b -> Fix $ Bool b
               Num i  -> Fix $ Num i
               _ -> error "impossible, lambda () can't construct this"
-                      
+
 
 -- Free variable analysis for lambda
 instance Analysis FreeVars Lambda where

@@ -57,7 +57,7 @@ patFoldAllClasses expr i =
 -- as the pattern
 --
 -- The number of atoms should also match the number of non variable patterns
--- since we should create an additional atom (with a new bound variable) for each. 
+-- since we should create an additional atom (with a new bound variable) for each.
 testCompileToQuery :: Traversable lang => Pattern lang -> Bool
 testCompileToQuery p = case compileToQuery p of
      -- Handle special case for selectAll queries...
@@ -86,15 +86,15 @@ ematchSingletonVar v eg =
         matches = IS.fromList $ map matchClassId $ ematch db q
         eclasses = IM.keysSet (classes eg)
     in
-        matches == eclasses 
+        matches == eclasses
 
 
 -- | Property test for 'genericJoin'.
 --
 -- If we search a database with an expression in which all patterns are
 -- variables (the only non-variable pattern is the top one), then, altogether,
--- we should get a list of all e-classes 
--- genericJoinAll :: Database lang -> 
+-- we should get a list of all e-classes
+-- genericJoinAll :: Database lang ->
 
 
 -- The equivalence relation over e-nodes must be closed over congruence after rebuilding
@@ -117,7 +117,7 @@ hashConsInvariant eg =
         where
           g en = case lookupNM (canonicalize en eg) (eg^._memo) of
             Nothing -> error "how can we not find canonical thing in map? :)" -- False
-            Just i' -> i' == find i eg 
+            Just i' -> i' == find i eg
 
 benchSaturate :: forall l. Language l
               => [Rewrite () l] -> (l Int -> Int) -> Fix l -> Bool

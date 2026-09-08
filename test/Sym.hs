@@ -146,7 +146,7 @@ evalConstant = \case
     UnOp Ln   _  -> Nothing
     Sym _ -> Nothing
     Const x -> Just x
-    
+
 unsafeGetSubst :: Pattern Expr -> VarsState -> Subst -> ClassId
 unsafeGetSubst (NonVariablePattern _) _ _ = error "unsafeGetSubst: NonVariablePattern; expecting VariablePattern"
 unsafeGetSubst (VariablePattern v) vss subst = findSubst (findVarName vss v) subst
