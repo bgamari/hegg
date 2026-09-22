@@ -151,9 +151,7 @@ genericJoin d q@(Query _ atoms) = genericJoin' atoms (orderedVarsInQuery q)
 
 -- | Returns True if 'Var' occurs in given 'Atom'
 elemOfAtom :: (Functor lang, Foldable lang) => Var -> Atom lang -> Bool
-elemOfAtom !x (Atom v l) = case v of
- CVar v' -> x == v'
- _ -> or $ fmap (\v' -> CVar x == v') l
+elemOfAtom !x (Atom v l) = v == CVar x || any (== CVar x) l
 
 -- ROMES:TODO: Batching? How? https://arxiv.org/pdf/2108.02290.pdf
 

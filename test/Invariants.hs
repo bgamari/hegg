@@ -12,6 +12,7 @@
 module Invariants where
 
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck as QC hiding (classes)
 
 import Control.Monad
@@ -87,6 +88,24 @@ ematchSingletonVar v eg =
         eclasses = IM.keysSet (classes eg)
     in
         matches == eclasses 
+
+
+-- Query variable IDs must not require parents to be matched before children.
+matchChildBeforeRoot :: Assertion
+matchChildBeforeRoot =
+    map bindings (genericJoin (eGraphToDatabase graph) query)
+      @?= [(Just root, Just value)]
+    where
+        graph :: EGraph () Expr
+        ((root, value), graph) = egraph $ do
+            childId <- GM.add $ Node $ Sym "x"
+            rootId <- GM.add $ Node $ UnOp Sin childId
+            pure (rootId, childId)
+        rootVar = MatchVar 1
+        childVar = MatchVar 0
+        query = Query [rootVar, childVar]
+            [Atom (CVar rootVar) (UnOp Sin (CVar childVar))]
+        bindings subst = (lookupSubst rootVar subst, lookupSubst childVar subst)
 
 
 -- | Property test for 'genericJoin'.
@@ -199,6 +218,7 @@ invariants = testGroup "Invariants"
     -- TODO: Much infinite looping ...
   -- , QC.testProperty "Bench saturation @Expr" (withMaxSuccess 10 (benchSaturate @Expr rewrites symCost))
   , QC.testProperty "Singleton variable matches all" (ematchSingletonVar @SimpleExpr)
+  , testCase "Matches a child variable before its root" matchChildBeforeRoot
   , QC.testProperty "Hash Cons Invariant" (hashConsInvariant @SimpleExpr)
   , QC.testProperty "Fold all classes with x:=c" (patFoldAllClasses @SimpleExpr)
   ]
